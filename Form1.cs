@@ -377,11 +377,11 @@ namespace ITSupportToolkit
         Panel BuildDriversPage()
         {
             var pg = PageWithScroll("🖥  Driver Suite");
-            var grp = AddSection(pg, "Snappy Driver Installer Origin (SDIO)",
-                "Tool tổng hợp driver tự động scan phần cứng và tải đúng driver từ nhiều nguồn.");
+            var grp = AddSection(pg, "Quét drivers",
+                "Tool quét drivers can tai");
 
             var row = AddRow(grp);
-            AddBtn(row, "⬇  Tải & Mở SDIO", C_ACCENT, BtnSDIO_Click);
+            AddBtn(row, "⬇  Quét", C_ACCENT, BtnSDIO_Click);
 
             var grp2 = AddSection(pg, "Intel Driver & Support Assistant",
                 "Tải về trình hỗ trợ driver chính hãng Intel — phù hợp máy Intel CPU/iGPU.");
@@ -393,14 +393,41 @@ namespace ITSupportToolkit
 
         async void BtnSDIO_Click(object s, EventArgs e)
         {
-            await RunGuarded("SDIO Download", async () => {
-                const string url = "https://www.glenn.delahoy.com/wp-content/uploads/SDIO_Update.exe";
-                const string dest = @"C:\IT_Tools\SDIO\SDIO_Update.exe";
-                Directory.CreateDirectory(@"C:\IT_Tools\SDIO");
-                Log("Đang tải SDIO về C:\\IT_Tools\\SDIO\\...", C_YELLOW);
-                await DownloadAsync(url, dest);
-                Log("Đang mở SDIO...", C_ACCENT);
-                Process.Start(new ProcessStartInfo(dest) { UseShellExecute = true });
+            await RunGuarded("Quét Driver Hệ Thống", async () => {
+                Log("Đang truy vấn danh sách thiết bị phần cứng...", C_YELLOW);
+
+                await Task.Run(() => {
+                    // Truy vấn các thiết bị có trạng thái lỗi hoặc thiếu driver
+                    // ConfigManagerErrorCode != 0 thường chỉ ra thiết bị chưa sẵn sàng hoặc thiếu driver
+                    string query = "SELECT * FROM Win32_PnPEntity WHERE ConfigManagerErrorCode <> 0";
+
+                    using (var searcher = new ManagementObjectSearcher(query))
+                    {
+                        var devices = searcher.Get();
+                        int count = 0;
+
+                        if (devices.Count == 0)
+                        {
+                            Log("✔ Không tìm thấy thiết bị nào thiếu Driver.", C_GREEN);
+                        }
+                        else
+                        {
+                            Log($"⚠ Tìm thấy {devices.Count} thiết bị có vấn đề:", C_RED);
+                            foreach (ManagementObject mo in devices)
+                            {
+                                count++;
+                                string name = mo["Name"]?.ToString() ?? "Unknown Device";
+                                string status = mo["Status"]?.ToString() ?? "Unknown Status";
+                                string deviceId = mo["DeviceID"]?.ToString() ?? "N/A";
+
+                                Log($"{count}. Tên: {name}", C_TEXT);
+                                Log($"   ID: {deviceId}", C_SUBTEXT);
+                                Log($"   Trạng thái: {status}", C_YELLOW);
+                            }
+                            Log("\nGợi ý: Bạn có thể dùng Windows Update để tự động tải các driver này.", C_ACCENT);
+                        }
+                    }
+                });
             });
         }
 
